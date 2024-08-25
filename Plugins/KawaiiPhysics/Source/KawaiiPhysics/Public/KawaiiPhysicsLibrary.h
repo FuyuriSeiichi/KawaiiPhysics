@@ -72,6 +72,16 @@ public:
 		Result = (ConversionResult == EAnimNodeReferenceConversionResult::Succeeded);
 	}
 
+	/** Collect KawaiiPhysics Node References from AnimInstance(ABP)  */
+	static bool CollectKawaiiPhysicsNodes(TArray<FKawaiiPhysicsReference>& Nodes,
+	                                      UAnimInstance* AnimInstance, const FGameplayTagContainer& FilterTags,
+	                                      bool bFilterExactMatch);
+
+	/** Collect KawaiiPhysics Node References from SkeletalMeshComponent  */
+	static bool CollectKawaiiPhysicsNodes(TArray<FKawaiiPhysicsReference>& Nodes,
+	                                      USkeletalMeshComponent* MeshComp, const FGameplayTagContainer& FilterTags,
+	                                      bool bFilterExactMatch);
+
 	/** ResetDynamics */
 	UFUNCTION(BlueprintCallable, Category = "Kawaii Physics", meta=(BlueprintThreadSafe))
 	static FKawaiiPhysicsReference ResetDynamics(const FKawaiiPhysicsReference& KawaiiPhysics);
@@ -92,14 +102,14 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Kawaii Physics", meta=(BlueprintThreadSafe))
 	static TArray<FName> GetExcludeBoneNames(const FKawaiiPhysicsReference& KawaiiPhysics);
 
-	/** Set PhysicsSettings */
+	// PhysicsSettings
 	UFUNCTION(BlueprintCallable, Category = "Kawaii Physics", meta=(BlueprintThreadSafe))
 	static FKawaiiPhysicsReference SetPhysicsSettings(const FKawaiiPhysicsReference& KawaiiPhysics,
 	                                                  UPARAM(ref) FKawaiiPhysicsSettings& PhysicsSettings)
 	{
 		KAWAIIPHYSICS_VALUE_SETTER(FKawaiiPhysicsSettings, PhysicsSettings);
 	}
-
+	
 	UFUNCTION(BlueprintPure, Category = "Kawaii Physics", meta=(BlueprintThreadSafe))
 	static FKawaiiPhysicsSettings GetPhysicsSettings(const FKawaiiPhysicsReference& KawaiiPhysics)
 	{
@@ -229,6 +239,31 @@ public:
 	{
 		KAWAIIPHYSICS_VALUE_GETTER(TObjectPtr<UKawaiiPhysicsLimitsDataAsset>, LimitsDataAsset);
 	}
+
+	/** Add ExternalForce With ExecResult */
+	UFUNCTION(BlueprintCallable, Category = "Kawaii Physics",
+		meta=(BlueprintThreadSafe, ExpandEnumAsExecs = "ExecResult"))
+	static FKawaiiPhysicsReference AddExternalForceWithExecResult(EKawaiiPhysicsAccessExternalForceResult& ExecResult,
+	                                                              const FKawaiiPhysicsReference& KawaiiPhysics,
+	                                                              FInstancedStruct& ExternalForce, UObject* Owner);
+
+	/** Add ExternalForce */
+	UFUNCTION(BlueprintCallable, Category = "Kawaii Physics", meta=(BlueprintThreadSafe))
+	static bool AddExternalForce(const FKawaiiPhysicsReference& KawaiiPhysics,
+	                             FInstancedStruct& ExternalForce, UObject* Owner, bool bIsOneShot = false);
+
+	/** Add ExternalForces to SkeletalMeshComponent */
+	UFUNCTION(BlueprintCallable, Category = "Kawaii Physics", meta=(BlueprintThreadSafe))
+	static bool AddExternalForcesToComponent(USkeletalMeshComponent* MeshComp,
+	                                         UPARAM(ref) TArray<FInstancedStruct>& ExternalForces, UObject* Owner,
+	                                         UPARAM(ref) FGameplayTagContainer& FilterTags,
+	                                         bool bFilterExactMatch = false,
+	                                         bool bIsOneShot = false);
+
+	UFUNCTION(BlueprintCallable, Category = "Kawaii Physics", meta=(BlueprintThreadSafe))
+	static bool RemoveExternalForcesFromComponent(USkeletalMeshComponent* MeshComp, UObject* Owner,
+	                                              UPARAM(ref) FGameplayTagContainer& FilterTags,
+	                                              bool bFilterExactMatch = false);
 
 
 	/** Set ExternalForceParameter template */

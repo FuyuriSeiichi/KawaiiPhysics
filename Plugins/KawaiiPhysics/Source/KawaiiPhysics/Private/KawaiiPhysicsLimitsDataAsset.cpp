@@ -13,6 +13,7 @@ struct FCollisionLimitDataCustomVersion
 	{
 		// FNameからFBoneReferenceに移行
 		ChangeToBoneReference = 0,
+		DeprecateLimitData,
 
 		// ------------------------------------------------------
 		VersionPlusOne,
@@ -34,14 +35,14 @@ FCustomVersionRegistration GRegisterCollisionLimitDataCustomVersion(FCollisionLi
                                                                     TEXT("CollisionLimitData"));
 
 #if WITH_EDITOR
-template <typename CollisionLimitDataType, typename CollisionLimitType>
-void UpdateCollisionLimit(TArray<CollisionLimitDataType>& CollisionLimitsData, const CollisionLimitType* OutLimit)
+template <typename CollisionLimitType>
+void UpdateCollisionLimit(TArray<CollisionLimitType>& CollisionLimitsData, const CollisionLimitType& NewLimit)
 {
 	for (auto& LimitData : CollisionLimitsData)
 	{
-		if (LimitData.Guid == OutLimit->Guid)
+		if (LimitData.Guid == NewLimit.Guid)
 		{
-			LimitData.Update(OutLimit);
+			LimitData = NewLimit;
 			break;
 		}
 	}
@@ -53,21 +54,22 @@ void UKawaiiPhysicsLimitsDataAsset::UpdateLimit(FCollisionLimitBase* Limit)
 	switch (Limit->Type)
 	{
 	case ECollisionLimitType::Spherical:
-		UpdateCollisionLimit(SphericalLimitsData, static_cast<FSphericalLimit*>(Limit));
+		UpdateCollisionLimit(SphericalLimits, *static_cast<FSphericalLimit*>(Limit));
 		break;
 	case ECollisionLimitType::Capsule:
-		UpdateCollisionLimit(CapsuleLimitsData, static_cast<FCapsuleLimit*>(Limit));
+		UpdateCollisionLimit(CapsuleLimits, *static_cast<FCapsuleLimit*>(Limit));
+		break;
+	case ECollisionLimitType::Box:
+		UpdateCollisionLimit(BoxLimits, *static_cast<FBoxLimit*>(Limit));
 		break;
 	case ECollisionLimitType::Planar:
-		UpdateCollisionLimit(PlanarLimitsData, static_cast<FPlanarLimit*>(Limit));
+		UpdateCollisionLimit(PlanarLimits, *static_cast<FPlanarLimit*>(Limit));
 		break;
 	case ECollisionLimitType::None:
 		break;
 	default:
 		break;
 	}
-
-	Sync();
 
 	MarkPackageDirty();
 }
@@ -87,41 +89,56 @@ void UKawaiiPhysicsLimitsDataAsset::Sync()
 {
 	SyncCollisionLimits(SphericalLimitsData, SphericalLimits);
 	SyncCollisionLimits(CapsuleLimitsData, CapsuleLimits);
+	SyncCollisionLimits(BoxLimitsData, BoxLimits);
 	SyncCollisionLimits(PlanarLimitsData, PlanarLimits);
 }
 
-
-void UKawaiiPhysicsLimitsDataAsset::PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent)
+void UKawaiiPhysicsLimitsDataAsset::PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent)
 {
-	Super::PostEditChangeProperty(PropertyChangedEvent);
+	Super::PostEditChangeChainProperty(PropertyChangedEvent);
 
-	const FName PropertyName = PropertyChangedEvent.MemberProperty
-		                           ? PropertyChangedEvent.MemberProperty->GetFName()
-		                           : NAME_None;
 
-	if (PropertyName == FName(TEXT("SphericalLimitsData")))
+	FName ArrayPropertyName = PropertyChangedEvent.MemberProperty
+		                          ? PropertyChangedEvent.MemberProperty->GetFName()
+		                          : NAME_None;
+	if (PropertyChangedEvent.ChangeType == EPropertyChangeType::ValueSet &&
+		PropertyChangedEvent.PropertyChain.GetActiveMemberNode())
 	{
-		if (PropertyChangedEvent.ChangeType == EPropertyChangeType::Duplicate)
-		{
-			SphericalLimitsData[PropertyChangedEvent.GetArrayIndex(PropertyName.ToString())].Guid = FGuid::NewGuid();
-		}
-	}
-	else if (PropertyName == FName(TEXT("CapsuleLimitsData")))
-	{
-		if (PropertyChangedEvent.ChangeType == EPropertyChangeType::Duplicate)
-		{
-			CapsuleLimitsData[PropertyChangedEvent.GetArrayIndex(PropertyName.ToString())].Guid = FGuid::NewGuid();
-		}
-	}
-	else if (PropertyName == FName(TEXT("PlanarLimitsData")))
-	{
-		if (PropertyChangedEvent.ChangeType == EPropertyChangeType::Duplicate)
-		{
-			PlanarLimitsData[PropertyChangedEvent.GetArrayIndex(PropertyName.ToString())].Guid = FGuid::NewGuid();
-		}
+		ArrayPropertyName = PropertyChangedEvent.PropertyChain.GetActiveMemberNode()->GetValue()->GetFName();
 	}
 
-	Sync();
+	auto UpdateLimits = [&](auto& Limits)
+	{
+		int32 ArrayIndex = PropertyChangedEvent.GetArrayIndex(ArrayPropertyName.ToString());
+
+		if (PropertyChangedEvent.ChangeType == EPropertyChangeType::ArrayAdd ||
+			PropertyChangedEvent.ChangeType == EPropertyChangeType::ValueSet)
+		{
+			Limits[ArrayIndex].SourceType = ECollisionSourceType::DataAsset;
+		}
+		else if (PropertyChangedEvent.ChangeType == EPropertyChangeType::Duplicate)
+		{
+			Limits[ArrayIndex].Guid = FGuid::NewGuid();
+		}
+	};
+
+	if (ArrayPropertyName == GET_MEMBER_NAME_CHECKED(UKawaiiPhysicsLimitsDataAsset, SphericalLimits))
+	{
+		UpdateLimits(SphericalLimits);
+	}
+	else if (ArrayPropertyName == GET_MEMBER_NAME_CHECKED(UKawaiiPhysicsLimitsDataAsset, CapsuleLimits))
+	{
+		UpdateLimits(CapsuleLimits);
+	}
+	else if (ArrayPropertyName == GET_MEMBER_NAME_CHECKED(UKawaiiPhysicsLimitsDataAsset, BoxLimits))
+	{
+		UpdateLimits(BoxLimits);
+	}
+	else if (ArrayPropertyName == GET_MEMBER_NAME_CHECKED(UKawaiiPhysicsLimitsDataAsset, PlanarLimits))
+	{
+		UpdateLimits(PlanarLimits);
+	}
+
 	OnLimitsChanged.Broadcast(PropertyChangedEvent);
 }
 #endif
@@ -161,11 +178,24 @@ void UKawaiiPhysicsLimitsDataAsset::PostLoad()
 		{
 			Data.DrivingBoneReference = FBoneReference(Data.DrivingBoneName);
 		}
+		for (auto& Data : BoxLimitsData)
+		{
+			Data.DrivingBoneReference = FBoneReference(Data.DrivingBoneName);
+		}
 		for (auto& Data : PlanarLimitsData)
 		{
 			Data.DrivingBoneReference = FBoneReference(Data.DrivingBoneName);
 		}
 		UE_LOG(LogKawaiiPhysics, Log, TEXT("Update : BoneName -> BoneReference (%s)"), *this->GetName());
+#endif
+	}
+
+	if (GetLinkerCustomVersion(FCollisionLimitDataCustomVersion::GUID) <
+		FCollisionLimitDataCustomVersion::DeprecateLimitData)
+	{
+#if WITH_EDITORONLY_DATA
+		Sync();
+		UE_LOG(LogKawaiiPhysics, Log, TEXT("Update : Deprecate LimitData (%s)"), *this->GetName());
 #endif
 	}
 }

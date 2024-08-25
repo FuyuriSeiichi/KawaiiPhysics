@@ -1,10 +1,11 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "BoneControllers/AnimNode_AnimDynamics.h"
 #include "BoneContainer.h"
 #include "BonePose.h"
+#include "GameplayTagContainer.h"
 #include "InstancedStruct.h"
+#include "BoneControllers/AnimNode_AnimDynamics.h"
 #include "BoneControllers/AnimNode_SkeletalControlBase.h"
 #include "AnimNode_KawaiiPhysics.generated.h"
 
@@ -12,15 +13,32 @@ class UKawaiiPhysics_CustomExternalForce;
 class UKawaiiPhysicsLimitsDataAsset;
 class UKawaiiPhysicsBoneConstraintsDataAsset;
 
+#if ENABLE_ANIM_DEBUG
+extern KAWAIIPHYSICS_API TAutoConsoleVariable<bool> CVarAnimNodeKawaiiPhysicsEnable;
+extern KAWAIIPHYSICS_API TAutoConsoleVariable<bool> CVarAnimNodeKawaiiPhysicsDebug;
+extern KAWAIIPHYSICS_API TAutoConsoleVariable<bool> CVarAnimNodeKawaiiPhysicsDebugLengthRate;
+#endif
+
+
+/**
+ * Enum representing the planar constraint axis in KawaiiPhysics.
+ */
 UENUM()
 enum class EPlanarConstraint : uint8
 {
+	/** No planar constraint */
 	None,
+	/** Constrain to the X axis */
 	X,
+	/** Constrain to the Y axis */
 	Y,
+	/** Constrain to the Z axis */
 	Z,
 };
 
+/**
+ * Enum representing the forward axis of a bone in KawaiiPhysics.
+ */
 UENUM()
 enum class EBoneForwardAxis : uint8
 {
@@ -32,15 +50,36 @@ enum class EBoneForwardAxis : uint8
 	Z_Negative,
 };
 
+/**
+ * Enum representing the type of collision limit in KawaiiPhysics.
+ */
 UENUM()
 enum class ECollisionLimitType : uint8
 {
 	None,
 	Spherical,
 	Capsule,
+	Box,
 	Planar,
 };
 
+/**
+ * Enum representing the source type of the collision limit in KawaiiPhysics.
+ */
+UENUM()
+enum class ECollisionSourceType : uint8
+{
+	/** Use the value set in the AnimNode */
+	AnimNode,
+	/** Use the value set in the DataAsset */
+	DataAsset,
+	/** Use the value set in the PhysicsAsset */
+	PhysicsAsset,
+};
+
+/**
+ * Base structure for defining collision limits in KawaiiPhysics.
+ */
 USTRUCT()
 struct FCollisionLimitBase
 {
@@ -50,43 +89,73 @@ struct FCollisionLimitBase
 	UPROPERTY(EditAnywhere, Category = CollisionLimitBase)
 	FBoneReference DrivingBone;
 
+	/** Offset location from the driving bone */
 	UPROPERTY(EditAnywhere, Category = CollisionLimitBase)
 	FVector OffsetLocation = FVector::ZeroVector;
 
+	/** Offset rotation from the driving bone */
 	UPROPERTY(EditAnywhere, Category = CollisionLimitBase, meta = (ClampMin = "-360", ClampMax = "360"))
 	FRotator OffsetRotation = FRotator::ZeroRotator;
 
+	/** Location of the collision limit */
 	UPROPERTY()
 	FVector Location = FVector::ZeroVector;
 
+	/** Rotation of the collision limit */
 	UPROPERTY()
 	FQuat Rotation = FQuat::Identity;
 
+	/** Whether the collision limit is enabled */
 	UPROPERTY()
 	bool bEnable = true;
 
+	/** Source type of the collision limit */
+	UPROPERTY(VisibleAnywhere, Category = CollisionLimitBase)
+	ECollisionSourceType SourceType = ECollisionSourceType::AnimNode;
+
 #if WITH_EDITORONLY_DATA
 
-	UPROPERTY()
-	bool bFromDataAsset = false;
-
+	/** Unique identifier for the collision limit (editor only) */
 	UPROPERTY(VisibleAnywhere, Category = Debug, meta = (IgnoreForMemberInitializationTest))
 	FGuid Guid = FGuid::NewGuid();
 
+	/** Type of the collision limit (editor only) */
 	UPROPERTY()
 	ECollisionLimitType Type = ECollisionLimitType::None;
 
 #endif
+
+	/** Assignment operator */
+	FCollisionLimitBase& operator=(const FCollisionLimitBase& Other)
+	{
+		DrivingBone = Other.DrivingBone;
+		OffsetLocation = Other.OffsetLocation;
+		OffsetRotation = Other.OffsetRotation;
+		Location = Other.Location;
+		Rotation = Other.Rotation;
+		bEnable = Other.bEnable;
+#if WITH_EDITORONLY_DATA
+		SourceType = Other.SourceType;
+		Guid = Other.Guid;
+		Type = Other.Type;
+#endif
+		return *this;
+	}
 };
 
+/**
+ * Structure representing a spherical limit for collision in KawaiiPhysics.
+ */
 USTRUCT(BlueprintType)
 struct FSphericalLimit : public FCollisionLimitBase
 {
 	GENERATED_BODY()
 
+	/** Default constructor */
 	FSphericalLimit()
 	{
 #if WITH_EDITORONLY_DATA
+		// Set the collision limit type to spherical
 		Type = ECollisionLimitType::Spherical;
 #endif
 	}
@@ -98,44 +167,115 @@ struct FSphericalLimit : public FCollisionLimitBase
 	/** Whether to lock bodies inside or outside of the sphere */
 	UPROPERTY(EditAnywhere, Category = SphericalLimit)
 	ESphericalLimitType LimitType = ESphericalLimitType::Outer;
+
+	/** Assignment operator */
+	FSphericalLimit& operator=(const FSphericalLimit& Other)
+	{
+		FCollisionLimitBase::operator=(Other);
+		Radius = Other.Radius;
+		LimitType = Other.LimitType;
+		return *this;
+	}
 };
 
+/**
+ * Structure representing a capsule limit for collision in KawaiiPhysics.
+ */
 USTRUCT(BlueprintType)
 struct FCapsuleLimit : public FCollisionLimitBase
 {
 	GENERATED_BODY()
 
-
+	/** Default constructor */
 	FCapsuleLimit()
 	{
 #if WITH_EDITORONLY_DATA
+		// Set the collision limit type to capsule
 		Type = ECollisionLimitType::Capsule;
 #endif
 	}
 
+	/** Radius of the capsule */
 	UPROPERTY(EditAnywhere, Category = CapsuleLimit, meta = (ClampMin = "0"))
 	float Radius = 5.0f;
 
+	/** Length of the capsule */
 	UPROPERTY(EditAnywhere, Category = CapsuleLimit, meta = (ClampMin = "0"))
 	float Length = 10.0f;
+
+	/** Assignment operator */
+	FCapsuleLimit& operator=(const FCapsuleLimit& Other)
+	{
+		FCollisionLimitBase::operator=(Other);
+		Radius = Other.Radius;
+		Length = Other.Length;
+		return *this;
+	}
 };
 
+/**
+ * Structure representing a box limit for collision in KawaiiPhysics.
+ */
+USTRUCT(BlueprintType)
+struct FBoxLimit : public FCollisionLimitBase
+{
+	GENERATED_BODY()
+
+	/** Default constructor */
+	FBoxLimit()
+	{
+#if WITH_EDITORONLY_DATA
+		// Set the collision limit type to box
+		Type = ECollisionLimitType::Box;
+#endif
+	}
+
+	/** The extent of the box defining the box limit */
+	UPROPERTY(EditAnywhere, Category = BoxLimit)
+	FVector Extent = FVector(5.0f, 5.0f, 5.0f);
+
+	/** Assignment operator */
+	FBoxLimit& operator=(const FBoxLimit& Other)
+	{
+		FCollisionLimitBase::operator=(Other);
+		Extent = Other.Extent;
+		return *this;
+	}
+};
+
+/**
+ * Structure representing a planar limit for collision in KawaiiPhysics.
+ */
 USTRUCT(BlueprintType)
 struct FPlanarLimit : public FCollisionLimitBase
 {
 	GENERATED_BODY()
 
+	/** Default constructor */
 	FPlanarLimit()
 	{
 #if WITH_EDITORONLY_DATA
+		// Set the collision limit type to planar
 		Type = ECollisionLimitType::Planar;
 #endif
 	}
 
+	/** The plane defining the planar limit */
 	UPROPERTY()
 	FPlane Plane = FPlane(0, 0, 0, 0);
+
+	/** Assignment operator */
+	FPlanarLimit& operator=(const FPlanarLimit& Other)
+	{
+		FCollisionLimitBase::operator=(Other);
+		Plane = Other.Plane;
+		return *this;
+	}
 };
 
+/**
+ * Structure representing the root bone settings for KawaiiPhysics.
+ */
 USTRUCT(BlueprintType)
 struct KAWAIIPHYSICS_API FKawaiiPhysicsRootBoneSetting
 {
@@ -159,6 +299,9 @@ struct KAWAIIPHYSICS_API FKawaiiPhysicsRootBoneSetting
 };
 
 
+/**
+ * Structure representing the settings for KawaiiPhysics.
+ */
 USTRUCT(BlueprintType)
 struct KAWAIIPHYSICS_API FKawaiiPhysicsSettings
 {
@@ -208,46 +351,81 @@ struct KAWAIIPHYSICS_API FKawaiiPhysicsSettings
 	float LimitAngle = 0.0f;
 };
 
+/**
+ * Structure representing a bone that can be modified by the KawaiiPhysics system.
+ */
 USTRUCT(BlueprintType)
 struct KAWAIIPHYSICS_API FKawaiiPhysicsModifyBone
 {
 	GENERATED_USTRUCT_BODY()
 
-public:
+	/** Reference to the bone */
 	UPROPERTY()
 	FBoneReference BoneRef;
+
+	/** Index of the bone */
 	UPROPERTY(BlueprintReadOnly, Category = "KawaiiPhysics|ModifyBone")
 	int32 Index = -1;
+
+	/** Index of the parent bone */
 	UPROPERTY(BlueprintReadOnly, Category = "KawaiiPhysics|ModifyBone")
 	int32 ParentIndex = -1;
-	UPROPERTY(BlueprintReadOnly, Category = "KawaiiPhysics|ModifyBone")
-	TArray<int32> ChildIndexs;
 
+	/** Indices of the child bones */
+	UPROPERTY(BlueprintReadOnly, Category = "KawaiiPhysics|ModifyBone")
+	TArray<int32> ChildIndices;
+
+	/** Physics settings for the bone */
 	UPROPERTY(BlueprintReadOnly, Category = "KawaiiPhysics|ModifyBone")
 	FKawaiiPhysicsSettings PhysicsSettings;
 
+	/** Current location of the bone */
 	UPROPERTY(BlueprintReadWrite, Category = "KawaiiPhysics|ModifyBone")
 	FVector Location = FVector::ZeroVector;
+
+	/** Previous location of the bone */
 	UPROPERTY(BlueprintReadOnly, Category = "KawaiiPhysics|ModifyBone")
 	FVector PrevLocation = FVector::ZeroVector;
+
+	/** Previous rotation of the bone */
 	UPROPERTY(BlueprintReadOnly, Category = "KawaiiPhysics|ModifyBone")
 	FQuat PrevRotation = FQuat::Identity;
+
+	/** Pose location of the bone */
 	UPROPERTY(BlueprintReadOnly, Category = "KawaiiPhysics|ModifyBone")
 	FVector PoseLocation = FVector::ZeroVector;
+
+	/** Pose rotation of the bone */
 	UPROPERTY(BlueprintReadOnly, Category = "KawaiiPhysics|ModifyBone")
 	FQuat PoseRotation = FQuat::Identity;
+
+	/** Pose scale of the bone */
 	UPROPERTY(BlueprintReadOnly, Category = "KawaiiPhysics|ModifyBone")
 	FVector PoseScale = FVector::OneVector;
+
+	/** Length from the root bone */
 	UPROPERTY(BlueprintReadOnly, Category = "KawaiiPhysics|ModifyBone")
 	float LengthFromRoot = 0.0f;
+
+	/** Length rate from the root bone */
 	UPROPERTY(BlueprintReadOnly, Category = "KawaiiPhysics|ModifyBone")
 	float LengthRateFromRoot = 0.0f;
+
+	/** Flag indicating if this is a dummy bone */
 	UPROPERTY(BlueprintReadOnly, Category = "KawaiiPhysics|ModifyBone")
 	bool bDummy = false;
+
+	/** Flag indicating if simulation should be skipped for this bone */
 	UPROPERTY(BlueprintReadOnly, Category = "KawaiiPhysics|ModifyBone")
 	bool bSkipSimulate = false;
 
-public:
+	/**
+	 * Updates the pose transform of the bone.
+	 *
+	 * @param BoneContainer The bone container containing bone hierarchy information.
+	 * @param Pose The pose to update.
+	 * @param ResetBoneTransformWhenBoneNotFound Flag to reset bone transform when bone is not found.
+	 */
 	void UpdatePoseTransform(const FBoneContainer& BoneContainer, FCSPose<FCompactPose>& Pose,
 	                         bool ResetBoneTransformWhenBoneNotFound)
 	{
@@ -270,8 +448,14 @@ public:
 		PoseScale = ComponentSpaceTransform.GetScale3D();
 	}
 
+	/**
+	 * Checks if the bone has a parent.
+	 *
+	 * @return True if the bone has a parent, false otherwise.
+	 */
 	bool HasParent() const { return ParentIndex >= 0; }
 
+	/** Default constructor */
 	FKawaiiPhysicsModifyBone()
 	{
 	}
@@ -289,6 +473,9 @@ enum class EXPBDComplianceType : uint8
 	Fat UMETA(DisplayName = "Fat"),
 };
 
+/**
+ * Structure representing a constraint between two bones for the KawaiiPhysics system.
+ */
 USTRUCT()
 struct FModifyBoneConstraint
 {
@@ -298,51 +485,63 @@ struct FModifyBoneConstraint
 	{
 	}
 
+	/** The first bone reference in the constraint */
 	UPROPERTY(EditAnywhere, category = "KawaiiPhysics")
 	FBoneReference Bone1;
 
+	/** The second bone reference in the constraint */
 	UPROPERTY(EditAnywhere, category = "KawaiiPhysics")
 	FBoneReference Bone2;
 
+	/** Flag to override the compliance type */
 	UPROPERTY(EditAnywhere, category = "KawaiiPhysics", meta=(InlineEditConditionToggle))
 	bool bOverrideCompliance = false;
 
+	/** The compliance type to use if overridden */
 	UPROPERTY(EditAnywhere, category = "KawaiiPhysics", meta=(EditCondition="bOverrideCompliance"))
 	EXPBDComplianceType ComplianceType = EXPBDComplianceType::Leather;
 
+	/** Index of the first modify bone */
 	UPROPERTY()
 	int32 ModifyBoneIndex1 = -1;
 
+	/** Index of the second modify bone */
 	UPROPERTY()
 	int32 ModifyBoneIndex2 = -1;
 
+	/** Length of the constraint */
 	UPROPERTY()
 	float Length = -1.0f;
 
+	/** Flag indicating if this is a dummy constraint */
 	UPROPERTY()
 	bool bIsDummy = false;
 
+	/** Lambda value for the constraint */
 	UPROPERTY()
 	float Lambda = 0.0f;
 
+	/** Equality operator to compare two constraints */
 	FORCEINLINE bool operator ==(const FModifyBoneConstraint& Other) const
 	{
 		return ((Bone1 == Other.Bone1 && Bone2 == Other.Bone2) || (Bone1 == Other.Bone2 && Bone2 == Other.Bone1)) &&
 			ComplianceType == Other.ComplianceType;
 	}
 
+	/** Initializes the bone references with the required bones */
 	void InitializeBone(const FBoneContainer& RequiredBones)
 	{
 		Bone1.Initialize(RequiredBones);
 		Bone2.Initialize(RequiredBones);
 	}
 
+	/** Checks if the bone references are valid */
 	bool IsBoneReferenceValid() const
 	{
-		//return Bone1.IsValidToEvaluate() && Bone2.IsValidToEvaluate();
 		return ModifyBoneIndex1 >= 0 && ModifyBoneIndex2 >= 0;
 	}
 
+	/** Checks if the constraint is valid */
 	bool IsValid() const
 	{
 		return Length > 0.0f;
@@ -354,7 +553,6 @@ struct KAWAIIPHYSICS_API FAnimNode_KawaiiPhysics : public FAnimNode_SkeletalCont
 {
 	GENERATED_USTRUCT_BODY()
 
-public:
 	/** 
 	* 指定ボーンとそれ以下のボーンを制御対象に
 	* Control the specified bone and the bones below it
@@ -414,6 +612,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Physics Settings",
 		meta = (PinHiddenByDefault, EditCondition="bNeedWarmUp", ClampMin = "0"))
 	int32 WarmUpFrames = 0;
+	/** 
+	* ResetDynamics時に物理の空回しを行うフラグ
+	* Flags to use warmup physics when ResetDynamics
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Physics Settings",
+		meta = (PinHiddenByDefault, EditCondition="bNeedWarmUp"))
+	bool bUseWarmUpWhenResetDynamics = true;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Physics Settings",
 		meta = (PinHiddenByDefault, InlineEditConditionToggle))
 	bool bNeedWarmUp = false;
@@ -543,6 +749,12 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Limits")
 	TArray<FCapsuleLimit> CapsuleLimits;
 	/** 
+	* コリジョン（ボックス）
+	* Box Collision
+	*/
+	UPROPERTY(EditAnywhere, Category = "Limits")
+	TArray<FBoxLimit> BoxLimits;
+	/** 
 	* コリジョン（平面）
 	* Planar Collision
 	*/
@@ -555,6 +767,14 @@ public:
 	*/
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Limits", meta = (PinHiddenByDefault))
 	TObjectPtr<UKawaiiPhysicsLimitsDataAsset> LimitsDataAsset = nullptr;
+
+	/** 
+	* コリジョン設定（PhyiscsAsset版）。別AnimNode・ABPで設定を流用したい場合はこちらを推奨
+	* Collision settings (PhyiscsAsset版 version). This is recommended if you want to reuse the settings for another AnimNode or ABP.
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Limits", meta = (PinHiddenByDefault))
+	TObjectPtr<UPhysicsAsset> PhysicsAssetForLimits = nullptr;
+
 	/** 
 	* コリジョン設定（DataAsset版）における球コリジョンのプレビュー
 	* Preview of sphere collision in collision settings (DataAsset version)
@@ -567,6 +787,12 @@ public:
 	*/
 	UPROPERTY(VisibleAnywhere, AdvancedDisplay, Category = "Limits")
 	TArray<FCapsuleLimit> CapsuleLimitsData;
+	/** 
+	* コリジョン設定（DataAsset版）におけるボックスコリジョンのプレビュー
+	* Preview of box collision in collision settings (DataAsset version)
+	*/
+	UPROPERTY(VisibleAnywhere, AdvancedDisplay, Category = "Limits")
+	TArray<FBoxLimit> BoxLimitsData;
 	/** 
 	* コリジョン設定（DataAsset版）における平面コリジョンのプレビュー
 	* Preview of planar collision in collision settings (DataAsset version)
@@ -702,12 +928,20 @@ public:
 	*/
 	UPROPERTY(EditAnywhere, Category = "World Collision", meta = (EditCondition = "!bIgnoreSelfComponent"))
 	TArray<FBoneReference> IgnoreBones;
+
 	/** 
 	* WorldCollisionにて、SkeletalMeshComponentが持つコリジョン(PhysicsAsset)を無視する設定（骨名のプリフィックス）
 	* In WorldCollision, set to ignore collision (PhysicsAsset) of SkeletalMeshComponent using bone name prefix
 	*/
 	UPROPERTY(EditAnywhere, Category = "World Collision", meta = (EditCondition = "!bIgnoreSelfComponent"))
 	TArray<FName> IgnoreBoneNamePrefix;
+
+	/** 
+	* ExternalForceなどで使用するフィルタリング用タグ
+	* Tag for filtering of ExternalForce etc
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tag")
+	FGameplayTag KawaiiPhysicsTag;
 
 	UPROPERTY(BlueprintReadWrite, Category = "Bones")
 	TArray<FKawaiiPhysicsModifyBone> ModifyBones;
@@ -724,12 +958,30 @@ protected:
 #if WITH_EDITORONLY_DATA
 	UPROPERTY()
 	bool bEditing = false;
+
+	UPROPERTY()
+	double LastEvaluatedTime;
+
 #endif
 
+	/**
+	 * Vector representing the movement of the skeletal component.
+	 */
 	FVector SkelCompMoveVector;
+
+	/**
+	 * Quaternion representing the rotation of the skeletal component.
+	 */
 	FQuat SkelCompMoveRotation;
 
+	/**
+	* Stores the delta time from the previous frame.
+	*/
 	float DeltaTimeOld;
+
+	/**
+	 * Flag indicating whether to reset the dynamics.
+	 */
 	bool bResetDynamics;
 
 public:
@@ -750,10 +1002,23 @@ public:
 	virtual bool IsValidToEvaluate(const USkeleton* Skeleton, const FBoneContainer& RequiredBones) override;
 	virtual bool HasPreUpdate() const override;
 	virtual void PreUpdate(const UAnimInstance* InAnimInstance) override;
-
 	// End of FAnimNode_SkeletalControlBase interface
 
+#if WITH_EDITORONLY_DATA
+
+	bool IsRecentlyEvaluated() const
+	{
+		return (FPlatformTime::Seconds() - LastEvaluatedTime) < 0.1;
+	}
+#endif
+
 protected:
+	/**
+	 * Gets the forward vector of a bone based on its rotation.
+	 *
+	 * @param Rotation The quaternion representing the bone's rotation.
+	 * @return The forward vector of the bone.
+	 */
 	FVector GetBoneForwardVector(const FQuat& Rotation) const
 	{
 		switch (BoneForwardAxis)
@@ -778,54 +1043,257 @@ protected:
 	virtual void InitializeBoneReferences(const FBoneContainer& RequiredBones) override;
 	// End of FAnimNode_SkeletalControlBase interface
 
-	// Initialize
+	/**
+	 * Initializes the modify bones array with the current pose context and bone container.
+	 *
+	 * @param Output The component space pose context.
+	 * @param BoneContainer The bone container containing bone hierarchy information.
+	 */
 	void InitModifyBones(FComponentSpacePoseContext& Output, const FBoneContainer& BoneContainer);
+
+	/**
+	 * Initializes the bone constraints for the physics simulation.
+	 */
 	void InitBoneConstraints();
+
+	/**
+	 * Applies the data asset to LimitData.
+	 *
+	 * @param RequiredBones The bone container containing the required bones.
+	 */
 	void ApplyLimitsDataAsset(const FBoneContainer& RequiredBones);
+
+	/**
+	 * Applies the physics asset to LimitData.
+	 *
+	 * @param RequiredBones The bone container containing the required bones.
+	 */
+	void ApplyPhysicsAsset(const FBoneContainer& RequiredBones);
+
+	/**
+	 * Applies the bone constraint data asset to BoneConstraints.
+	 *
+	 * @param RequiredBones The bone container containing the required bones.
+	 */
 	void ApplyBoneConstraintDataAsset(const FBoneContainer& RequiredBones);
+
+	/**
+	 * Adds a modify bone to the modify bones array.
+	 *
+	 * @param InModifyBones The array of modify bones to add to.
+	 * @param Output The component space pose context.
+	 * @param BoneContainer The bone container containing bone hierarchy information.
+	 * @param RefSkeleton The reference skeleton containing bone hierarchy information.
+	 * @param BoneIndex The index of the bone to add.
+	 * @param InExcludeBones The array of bones to exclude.
+	 * @return The index of the added modify bone.
+	 */
 	int32 AddModifyBone(TArray<FKawaiiPhysicsModifyBone>& InModifyBones, FComponentSpacePoseContext& Output,
 	                    const FBoneContainer& BoneContainer,
 	                    const FReferenceSkeleton& RefSkeleton, int32 BoneIndex,
 	                    const TArray<FBoneReference>& InExcludeBones);
 
-	// clone from FReferenceSkeleton::GetDirectChildBones
+	/**
+	* Collects the indices of all child bones for a given parent bone index.
+	*
+	* @param RefSkeleton The reference skeleton containing bone hierarchy information.
+	* @param ParentBoneIndex The index of the parent bone.
+	* @param Children An array to store the indices of the child bones.
+	* @return The number of child bones collected.
+	*/
 	int32 CollectChildBones(const FReferenceSkeleton& RefSkeleton, int32 ParentBoneIndex,
 	                        TArray<int32>& Children) const;
+	/**
+	 * Calculates the length of a bone from the root and updates the total bone length.
+	 *
+	 * @param Bone The bone to calculate the length for.
+	 * @param InModifyBones An array of bones to modify.
+	 * @param RefBonePose The reference bone pose.
+	 * @param TotalBoneLength The total length of all bones.
+	 */
 	void CalcBoneLength(FKawaiiPhysicsModifyBone& Bone, TArray<FKawaiiPhysicsModifyBone>& InModifyBones,
 	                    const TArray<FTransform>& RefBonePose, float& TotalBoneLength);
 
-	// Updates for simulate
+	/**
+	 * Updates the physics settings for all modified bones based on the current physics settings and curves.
+	 */
 	void UpdatePhysicsSettingsOfModifyBones();
+
+	/**
+	 * Updates the spherical limits for the given bones.
+	 *
+	 * @param Limits An array of spherical limits to update.
+	 * @param Output The pose context.
+	 * @param BoneContainer The bone container.
+	 * @param ComponentTransform The component transform.
+	 */
 	void UpdateSphericalLimits(TArray<FSphericalLimit>& Limits, FComponentSpacePoseContext& Output,
 	                           const FBoneContainer& BoneContainer, const FTransform& ComponentTransform);
+
+	/**
+	 * Updates the capsule limits for the given bones.
+	 *
+	 * @param Limits An array of capsule limits to update.
+	 * @param Output The pose context.
+	 * @param BoneContainer The bone container.
+	 * @param ComponentTransform The component transform.
+	 */
 	void UpdateCapsuleLimits(TArray<FCapsuleLimit>& Limits, FComponentSpacePoseContext& Output,
 	                         const FBoneContainer& BoneContainer, const FTransform& ComponentTransform);
+
+
+	/**
+	 * Updates the box limits for the given bones.
+	 *
+	 * @param Limits An array of box limits to update.
+	 * @param Output The pose context.
+	 * @param BoneContainer The bone container.
+	 * @param ComponentTransform The component transform.
+	 */
+	void UpdateBoxLimits(TArray<FBoxLimit>& Limits, FComponentSpacePoseContext& Output,
+	                     const FBoneContainer& BoneContainer, const FTransform& ComponentTransform);
+
+	/**
+	 * Updates the planar limits for the given bones.
+	 *
+	 * @param Limits An array of planar limits to update.
+	 * @param Output The pose context.
+	 * @param BoneContainer The bone container.
+	 * @param ComponentTransform The component transform.
+	 */
 	void UpdatePlanerLimits(TArray<FPlanarLimit>& Limits, FComponentSpacePoseContext& Output,
 	                        const FBoneContainer& BoneContainer, const FTransform& ComponentTransform);
+
+	/**
+	 * Updates the pose transform for all modified bones.
+	 *
+	 * @param Output The pose context.
+	 * @param BoneContainer The bone container.
+	 */
 	void UpdateModifyBonesPoseTransform(FComponentSpacePoseContext& Output, const FBoneContainer& BoneContainer);
+
+	/**
+	 * Updates the skeletal component movement vector and rotation.
+	 *
+	 * @param ComponentTransform The current component transform.
+	 */
 	void UpdateSkelCompMove(const FTransform& ComponentTransform);
 
-	// Simulate
+	/**
+	 * Simulates the physics for all modified bones.
+	 *
+	 * @param Output The pose context.
+	 * @param ComponentTransform The component transform.
+	 */
 	void SimulateModifyBones(FComponentSpacePoseContext& Output,
 	                         const FTransform& ComponentTransform);
+
+	/**
+	 * Simulates the physics for a single bone.
+	 *
+	 * @param Bone The bone to simulate.
+	 * @param Scene The scene interface.
+	 * @param ComponentTransform The component transform.
+	 * @param GravityCS The gravity vector in component space.
+	 * @param Exponent The exponent for the simulation.
+	 * @param SkelComp The skeletal mesh component.
+	 * @param Output The pose context.
+	 */
 	void Simulate(FKawaiiPhysicsModifyBone& Bone, const FSceneInterface* Scene, const FTransform& ComponentTransform,
 	              const FVector& GravityCS, const float& Exponent, const USkeletalMeshComponent* SkelComp,
 	              FComponentSpacePoseContext& Output);
+
+	/**
+	 * Adjusts the bone position based on world collision.
+	 *
+	 * @param Bone The bone to adjust.
+	 * @param OwningComp The owning skeletal mesh component.
+	 */
 	void AdjustByWorldCollision(FKawaiiPhysicsModifyBone& Bone, const USkeletalMeshComponent* OwningComp);
+
+	/**
+	 * Adjusts the bone position based on spherical collision limits.
+	 *
+	 * @param Bone The bone to adjust.
+	 * @param Limits An array of spherical limits.
+	 */
 	void AdjustBySphereCollision(FKawaiiPhysicsModifyBone& Bone, TArray<FSphericalLimit>& Limits);
+
+	/**
+	 * Adjusts the bone position based on capsule collision limits.
+	 *
+	 * @param Bone The bone to adjust.
+	 * @param Limits An array of capsule limits.
+	 */
 	void AdjustByCapsuleCollision(FKawaiiPhysicsModifyBone& Bone, TArray<FCapsuleLimit>& Limits);
+
+	/**
+	 * Adjusts the bone position based on box collision limits.
+	 *
+	 * @param Bone The bone to adjust.
+	 * @param Limits An array of box limits.
+	 */
+	void AdjustByBoxCollision(FKawaiiPhysicsModifyBone& Bone, TArray<FBoxLimit>& Limits);
+
+	/**
+	 * Adjusts the bone position based on planar collision limits.
+	 *
+	 * @param Bone The bone to adjust.
+	 * @param Limits An array of planar limits.
+	 */
 	void AdjustByPlanerCollision(FKawaiiPhysicsModifyBone& Bone, TArray<FPlanarLimit>& Limits);
+
+	/**
+	 * Adjusts the bone position based on angle limits.
+	 *
+	 * @param Bone The bone to adjust.
+	 * @param ParentBone The parent bone.
+	 */
 	void AdjustByAngleLimit(
 		FKawaiiPhysicsModifyBone& Bone,
 		const FKawaiiPhysicsModifyBone& ParentBone);
+
+	/**
+	 * Adjusts the bone position based on planar constraints.
+	 *
+	 * @param Bone The bone to adjust.
+	 * @param ParentBone The parent bone.
+	 */
 	void AdjustByPlanarConstraint(FKawaiiPhysicsModifyBone& Bone, const FKawaiiPhysicsModifyBone& ParentBone);
+
+	/**
+	 * Adjusts the bone positions based on bone constraints.
+	 */
 	void AdjustByBoneConstraints();
 
+	/**
+	 * Applies the simulation results to the bone transforms.
+	 *
+	 * @param Output The pose context.
+	 * @param BoneContainer The bone container.
+	 * @param OutBoneTransforms An array to store the resulting bone transforms.
+	 */
 	void ApplySimulateResult(FComponentSpacePoseContext& Output, const FBoneContainer& BoneContainer,
 	                         TArray<FBoneTransform>& OutBoneTransforms);
+
+	/**
+	 * Warms up the simulation by running it for a specified number of frames.
+	 *
+	 * @param Output The pose context.
+	 * @param BoneContainer The bone container.
+	 * @param ComponentTransform The component transform.
+	 */
 	void WarmUp(FComponentSpacePoseContext& Output, const FBoneContainer& BoneContainer,
 	            FTransform& ComponentTransform);
 
+	/**
+	 * Gets the wind velocity for a given bone.
+	 *
+	 * @param Scene The scene interface.
+	 * @param ComponentTransform The component transform.
+	 * @param Bone The bone to get the wind velocity for.
+	 * @return The wind velocity vector.
+	 */
 	FVector GetWindVelocity(const FSceneInterface* Scene, const FTransform& ComponentTransform,
 	                        const FKawaiiPhysicsModifyBone& Bone) const;
 

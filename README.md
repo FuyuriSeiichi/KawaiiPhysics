@@ -10,7 +10,8 @@ https://github.com/pafuhana1213/KawaiiPhysics/blob/master/README_en.md
 
 ダウンロード（C++ビルド環境がない方向け）  
 Github : https://github.com/pafuhana1213/KawaiiPhysics/releases/  
-Booth : https://pafuhana1213.booth.pm/items/5943534
+Booth : [https://pafuhana1213.booth.pm/items/5943534](https://pafuhana1213.booth.pm/items/5943534)  
+（ストアアカウントをフォローするとアップデート通知あり）
 
 ディスカッション  
 - [アップデート情報](https://github.com/pafuhana1213/KawaiiPhysics/discussions/categories/announcements-%E3%82%A2%E3%83%8A%E3%82%A6%E3%83%B3%E3%82%B9)
@@ -112,7 +113,15 @@ MIT
 [#KawaiiPhysics](https://twitter.com/search?q=%23kawaiiphysics&src=typed_query&f=live)
 
 ## 履歴
-- 2024/2/8 v1.16.0　[詳細はこちら](https://github.com/pafuhana1213/KawaiiPhysics/discussions/128)
+- 2024/8/16 v1.17.0　[詳細はこちら](https://github.com/pafuhana1213/KawaiiPhysics/discussions/137)
+  - Additional RootBones
+  - Box Limit
+  - PhysicsAsset for Limits
+  - AnimNotify / AnimNotifyState for NewExternalForce
+  - BP nodes for NewExternalForce
+  - NewExternalForce Wind
+  - Export BoneConstraint DataAsset
+- 2024/7/19 v1.16.0　[詳細はこちら](https://github.com/pafuhana1213/KawaiiPhysics/discussions/128)
   - New External Force
   - 詳細パネルの整理・機能追加
   - コンソール変数を追加（レベル上でのデバッグ用）

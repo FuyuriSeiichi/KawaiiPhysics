@@ -43,6 +43,7 @@ protected:
 	FDelegateHandle NodePropertyDelegateHandle;
 
 	void OnLimitDataAssetPropertyChange(FPropertyChangedEvent& InPropertyEvent);
+	bool IsSelectAnimNodeCollision() const;
 	FDelegateHandle LimitsDataAssetPropertyDelegateHandle;
 
 private:
@@ -52,6 +53,7 @@ private:
 	/** Render each collisions */
 	void RenderSphericalLimits(FPrimitiveDrawInterface* PDI) const;
 	void RenderCapsuleLimit(FPrimitiveDrawInterface* PDI) const;
+	void RenderBoxLimit(FPrimitiveDrawInterface* PDI) const;
 	void RenderPlanerLimit(FPrimitiveDrawInterface* PDI);
 
 	void RenderBoneConstraint(FPrimitiveDrawInterface* PDI) const;
@@ -75,7 +77,6 @@ private:
 	void Draw3DTextItem(const FText& Text, FCanvas* Canvas, const FSceneView* View, const FViewport* Viewport,
 	                    FVector Location);
 
-private:
 	/** Cache the typed nodes */
 	struct FAnimNode_KawaiiPhysics* RuntimeNode;
 	UAnimGraphNode_KawaiiPhysics* GraphNode;
@@ -83,8 +84,11 @@ private:
 	/** The current bone selection mode */
 	ECollisionLimitType SelectCollisionType = ECollisionLimitType::None;
 	int32 SelectCollisionIndex = -1;
-	bool bIsSelectCollisionFromDataAsset;
+	ECollisionSourceType SelectCollisionSourceType = ECollisionSourceType::AnimNode;
 
 	// storing current widget mode 
 	mutable UE_WIDGET::EWidgetMode CurWidgetMode;
+
+	// physics asset body material
+	TObjectPtr<UMaterialInstanceDynamic> PhysicsAssetBodyMaterial;
 };
